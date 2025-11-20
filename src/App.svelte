@@ -1,12 +1,8 @@
 <script>
-  import { createWorker } from 'tesseract.js';
-  import { dictionary } from './dictionary.js';
-
   // State variables
   let imageFile = null;
   let imagePreview = null;
   let isProcessing = false;
-  let ocrText = '';
   let matchedTerms = [];
   let expandedTerms = {};
   let error = null;
@@ -21,79 +17,111 @@
     error = null;
     matchedTerms = [];
     expandedTerms = {};
-    ocrText = '';
 
-    // Create image preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      imagePreview = e.target.result;
-    };
-    reader.readAsDataURL(file);
+    // Wait for preview to load first
+    try {
+      imagePreview = await fileToBase64(file);
+    } catch (err) {
+      error = 'Failed to read image file. Please try another file.';
+      imageFile = null;
+      return;
+    }
 
-    // Process with OCR
+    // Then process with Claude vision
     await processImage(file);
   }
 
-  // Process image with Tesseract.js OCR
+  // Process image by calling our backend API
   async function processImage(file) {
     isProcessing = true;
     error = null;
 
     try {
-      // Initialize Tesseract worker
-      const worker = await createWorker('eng', 1, {
-        logger: m => console.log(m) // Log progress to console
+      // Validate file type
+      const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validImageTypes.includes(file.type)) {
+        error = 'Please upload a valid image file (JPEG, PNG, GIF, or WebP).';
+        isProcessing = false;
+        return;
+      }
+
+      // Convert file to base64
+      const base64Image = await fileToBase64(file);
+      const base64Data = base64Image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+
+      // Call our backend API (no CORS issues!)
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          image: base64Data,
+          mediaType: file.type
+        })
       });
 
-      // Perform OCR
-      const { data: { text } } = await worker.recognize(file);
-      ocrText = text;
+      const data = await response.json();
 
-      console.log('OCR Text extracted:', text);
+      if (!response.ok) {
+        error = data.error || 'Failed to analyze image. Please try again.';
+        isProcessing = false;
+        return;
+      }
 
-      // Match terms from dictionary
-      matchedTerms = findMatchingTerms(text);
+      // Extract response from backend
+      const message = data.response;
 
-      // Terminate worker to free memory
-      await worker.terminate();
+      // Validate response structure
+      if (!message.content || !message.content[0] || !message.content[0].text) {
+        error = 'Unexpected response format from API.';
+        isProcessing = false;
+        return;
+      }
+
+      const responseText = message.content[0].text;
+      console.log('Claude response:', responseText);
+
+      // Extract and parse JSON safely
+      try {
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          // Validate structure
+          if (Array.isArray(parsed) && parsed.every(item => item.name && item.definition)) {
+            matchedTerms = parsed;
+          } else {
+            console.warn('Invalid dish structure in response:', parsed);
+            matchedTerms = [];
+          }
+        } else {
+          matchedTerms = [];
+        }
+      } catch (parseErr) {
+        console.error('JSON parse error:', parseErr);
+        console.error('Raw response:', responseText);
+        matchedTerms = [];
+        error = 'Failed to parse response. Please try again.';
+      }
 
     } catch (err) {
-      console.error('OCR Error:', err);
-      error = 'Failed to process image. Please try again.';
+      console.error('API Error:', err);
+      error = err.message || 'Failed to analyze image. Please try again.';
     } finally {
       isProcessing = false;
     }
   }
 
-  // Find matching dictionary terms in OCR text
-  function findMatchingTerms(text) {
-    const normalizedText = text.toLowerCase();
-    const matches = [];
-    const seenTerms = new Set();
-
-    dictionary.forEach(term => {
-      // Check main name
-      if (normalizedText.includes(term.name.toLowerCase()) && !seenTerms.has(term.name)) {
-        matches.push(term);
-        seenTerms.add(term.name);
-        return;
-      }
-
-      // Check alternate spellings
-      if (term.alternates) {
-        for (const alt of term.alternates) {
-          if (normalizedText.includes(alt.toLowerCase()) && !seenTerms.has(term.name)) {
-            matches.push(term);
-            seenTerms.add(term.name);
-            break;
-          }
-        }
-      }
+  // Helper function to convert File to base64
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
-
-    // Sort alphabetically
-    return matches.sort((a, b) => a.name.localeCompare(b.name));
   }
+
 
   // Toggle term expansion
   function toggleTerm(termName) {
@@ -106,7 +134,6 @@
     imageFile = null;
     imagePreview = null;
     isProcessing = false;
-    ocrText = '';
     matchedTerms = [];
     expandedTerms = {};
     error = null;
@@ -115,7 +142,7 @@
 
 <main>
   <header>
-    <h1>🍝 Sicilian Menu Translator</h1>
+    <h1>Sicilian Menu Translator</h1>
     <p>Upload a menu photo to identify Sicilian dishes</p>
   </header>
 
@@ -124,7 +151,7 @@
       <!-- Initial upload state -->
       <div class="upload-section">
         <label for="imageInput" class="upload-button">
-          📷 Analyze Menu Photo
+          Analyze Menu Photo
         </label>
         <input
           id="imageInput"
@@ -144,12 +171,12 @@
         {#if isProcessing}
           <div class="processing">
             <div class="spinner"></div>
-            <p>Processing image with OCR...</p>
-            <p class="hint">This may take 5-10 seconds</p>
+            <p>Analyzing menu with AI...</p>
+            <p class="hint">This may take a few seconds</p>
           </div>
         {:else if error}
           <div class="error">
-            <p>❌ {error}</p>
+            <p>{error}</p>
             <button on:click={reset}>Try Another Photo</button>
           </div>
         {:else if matchedTerms.length > 0}
@@ -178,7 +205,7 @@
           </div>
         {:else}
           <div class="no-matches">
-            <p>🤷 No Sicilian dishes found in this image.</p>
+            <p>No Sicilian dishes found in this image.</p>
             <p class="hint">Make sure the photo is clear and includes Sicilian menu items.</p>
           </div>
         {/if}
@@ -193,7 +220,7 @@
   </div>
 
   <footer>
-    <p>MVP • Supports 15 classic Sicilian dishes</p>
+    <p>HorizonRuler 2025</p>
   </footer>
 </main>
 
@@ -203,7 +230,7 @@
     margin: 0;
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #f9fafb;
     min-height: 100vh;
   }
 
@@ -217,7 +244,7 @@
   /* Header */
   header {
     text-align: center;
-    color: white;
+    color: #111827;
     margin-bottom: 30px;
   }
 
@@ -225,6 +252,7 @@
     margin: 0;
     font-size: 2rem;
     font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
   header p {
@@ -238,7 +266,7 @@
     background: white;
     border-radius: 16px;
     padding: 30px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
     min-height: 300px;
   }
 
@@ -254,24 +282,25 @@
 
   .upload-button {
     display: inline-block;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #2563eb;
     color: white;
     padding: 16px 32px;
     font-size: 1.1rem;
     font-weight: 600;
-    border-radius: 12px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   .upload-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    background: #1d4ed8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
   }
 
   .upload-button:active {
-    transform: translateY(0);
+    transform: scale(0.98);
   }
 
   /* Results section */
@@ -289,21 +318,23 @@
     max-width: 100%;
     max-height: 400px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.03);
   }
 
   /* Processing state */
   .processing {
     text-align: center;
     padding: 40px 20px;
+    max-width: 500px;
+    margin: 0 auto;
   }
 
   .spinner {
     width: 50px;
     height: 50px;
     margin: 0 auto 20px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #667eea;
+    border: 4px solid #e5e7eb;
+    border-top: 4px solid #2563eb;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -314,60 +345,92 @@
   }
 
   .processing p {
-    margin: 10px 0;
-    color: #333;
+    margin: 12px 0;
+    color: #374151;
+    font-weight: 500;
   }
 
   .hint {
     font-size: 0.9rem;
-    color: #666;
+    color: #6b7280;
+    font-weight: 400;
   }
 
   /* Error state */
   .error {
     text-align: center;
-    padding: 30px;
-    color: #d32f2f;
+    padding: 40px 20px;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .error p {
+    color: #ef4444;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 20px;
   }
 
   .error button {
     margin-top: 16px;
     padding: 12px 24px;
-    background: #d32f2f;
+    background: #ef4444;
     color: white;
     border: none;
     border-radius: 8px;
     font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   .error button:hover {
-    background: #b71c1c;
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+  }
+
+  .error button:active {
+    transform: scale(0.98);
   }
 
   /* Matches section */
+  .matches {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
   .matches h2 {
-    margin: 0 0 20px 0;
+    margin: 0 0 24px 0;
     font-size: 1.4rem;
-    color: #333;
+    font-weight: 600;
+    color: #111827;
+    text-align: center;
+    letter-spacing: -0.01em;
   }
 
   .term-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
+    max-width: 600px;
+    margin: 0 auto;
   }
 
   .term-card {
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
     overflow: hidden;
-    transition: border-color 0.2s;
+    background: white;
+    transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
   }
 
   .term-card:hover {
-    border-color: #667eea;
+    border-color: #2563eb;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
+    transform: translateY(-4px);
   }
 
   .term-header {
@@ -375,7 +438,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px;
+    padding: 20px 24px;
     background: white;
     border: none;
     cursor: pointer;
@@ -385,30 +448,32 @@
   }
 
   .term-header:hover {
-    background: #f5f5f5;
+    background: #f8f9fa;
   }
 
   .term-name {
     font-weight: 600;
-    color: #333;
-    font-size: 1.1rem;
+    color: #111827;
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
   }
 
   .toggle-icon {
     font-size: 1.5rem;
-    color: #667eea;
+    color: #2563eb;
     font-weight: 300;
     min-width: 24px;
     text-align: center;
   }
 
   .term-definition {
-    padding: 16px;
-    background: #f9f9f9;
-    border-top: 1px solid #e0e0e0;
-    color: #555;
-    line-height: 1.6;
-    animation: slideDown 0.2s ease-out;
+    padding: 20px 24px 24px 24px;
+    background: #f8f9fa;
+    border-top: 1px solid #e5e7eb;
+    color: #4b5563;
+    line-height: 1.8;
+    font-size: 0.975rem;
+    animation: slideDown 0.3s ease-out;
   }
 
   @keyframes slideDown {
@@ -426,47 +491,54 @@
   .no-matches {
     text-align: center;
     padding: 40px 20px;
-    color: #666;
+    max-width: 500px;
+    margin: 0 auto;
   }
 
   .no-matches p {
-    margin: 10px 0;
+    margin: 12px 0;
+    color: #6b7280;
   }
 
   .no-matches p:first-child {
     font-size: 1.2rem;
-    color: #333;
+    font-weight: 600;
+    color: #374151;
   }
 
   /* Reset button */
   .reset-button {
     width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    max-width: 300px;
+    margin: 0 auto;
+    display: block;
+    padding: 14px 24px;
+    background: #2563eb;
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   .reset-button:hover {
+    background: #1d4ed8;
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12), 0 3px 6px rgba(0, 0, 0, 0.08);
   }
 
   .reset-button:active {
-    transform: translateY(0);
+    transform: scale(0.98);
   }
 
   /* Footer */
   footer {
     text-align: center;
     margin-top: 30px;
-    color: white;
-    opacity: 0.8;
+    color: #6b7280;
     font-size: 0.9rem;
   }
 

@@ -48,7 +48,8 @@ app.post('/api/analyze', async (req, res) => {
     // Call Anthropic API (server-to-server, no CORS restrictions!)
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      max_tokens: 2048,
+      system: "You are a helpful menu translator assistant. Your primary goal is to identify dishes from menu photos and provide useful information, even when images are rotated, blurry, or low quality. You should make your best attempt to read and interpret menu text rather than declining due to image quality issues. When in doubt, provide your best interpretation with reasonable confidence rather than returning no results. Users prefer helpful attempts over perfect accuracy.",
       messages: [
         {
           role: 'user',
@@ -63,21 +64,64 @@ app.post('/api/analyze', async (req, res) => {
             },
             {
               type: 'text',
-              text: `Analyze this menu and identify any Sicilian dishes. For each Sicilian dish found, provide:
-1. The dish name (exactly as it appears on the menu)
-2. A brief explanation of what it is and its significance in Sicilian cuisine
+              text: `Carefully analyze this entire menu and identify ALL notable dishes from ANY cuisine visible in the image.
+
+CRITICAL INSTRUCTIONS FOR ROTATED/UNCLEAR IMAGES:
+- If the image is rotated 90 degrees, READ IT ANYWAY by mentally rotating it
+- Even if text is blurry, unclear, or partially obscured, provide your BEST GUESS
+- It's BETTER to provide an uncertain identification than to return no results
+- You do NOT need to be 100% certain - 60-70% confidence is ENOUGH
+- If you can make out even part of a dish name, include it
+- Do NOT give up just because the image is rotated or low quality
+- Your goal is to be HELPFUL, not perfect
+
+For EACH dish you find, provide:
+1. The dish name (exactly as it appears on the menu, including any non-English characters)
+2. A brief, informative explanation that includes:
+   - What the dish is and its key ingredients
+   - Its cultural/culinary origin and significance
+   - Any interesting preparation methods or traditions
+
+IMPORTANT:
+- Scan the ENTIRE menu - identify ALL dishes you can see
+- Include dishes from ANY cuisine: Italian, Chinese, Japanese, French, Mexican, Indian, Thai, American, etc.
+- If text is in a foreign language or script (Chinese characters, Italian, French, etc.), include it in the dish name
+- Include both the original name and English translation/transliteration when applicable
+
+Examples of what to identify:
+- Italian: Risotto, Osso Buco, Tiramisu, Carbonara, Margherita Pizza, Bruschetta, Panna Cotta
+- Chinese: 麻婆豆腐 (Mapo Tofu), 宫保鸡丁 (Kung Pao Chicken), 小笼包 (Xiaolongbao), 北京烤鸭 (Peking Duck)
+- Japanese: Sushi, Ramen, Tempura, Tonkatsu, Miso Soup
+- French: Coq au Vin, Bouillabaisse, Ratatouille, Crème Brûlée
+- Mexican: Tacos, Enchiladas, Mole, Ceviche
+- Indian: Biryani, Tikka Masala, Samosas, Naan
+- Thai: Pad Thai, Tom Yum, Green Curry, Mango Sticky Rice
+- American: BBQ Ribs, Buffalo Wings, Clam Chowder, Apple Pie
 
 Return your response as a JSON array of objects with this structure:
 [
   {
-    "name": "Dish Name",
-    "definition": "Explanation of the dish"
+    "name": "Osso Buco",
+    "definition": "A Milanese specialty of braised veal shanks cooked with vegetables, white wine, and broth. The marrow in the bone center is considered a delicacy."
+  },
+  {
+    "name": "Risotto ai Funghi",
+    "definition": "A creamy Northern Italian rice dish made with arborio rice and mushrooms, slowly cooked with broth, white wine, butter, and Parmesan cheese."
+  },
+  {
+    "name": "宫保鸡丁 (Kung Pao Chicken)",
+    "definition": "A Sichuan dish featuring diced chicken stir-fried with peanuts, vegetables, and chili peppers in a savory-sweet sauce."
   }
 ]
 
-Only include dishes that are actually Sicilian or have strong Sicilian connections. Do not include generic Italian dishes or individual ingredients unless they are presented as a complete Sicilian dish on the menu. Focus on actual menu items, not ingredients listed in descriptions.
+Guidelines:
+- Focus on complete dishes/menu items, not individual ingredients
+- Skip generic items like "Salad" or "Bread" unless they have a specific preparation (e.g., "Caesar Salad", "Garlic Bread")
+- For foreign language menus, include the original text and translation
+- Provide cultural context when relevant (e.g., "a traditional Sicilian dish", "popular Cantonese dim sum")
+- If you're unsure about a dish's origin, still include it with your best explanation
 
-If no Sicilian dishes are found, return an empty array: []`
+If no identifiable dishes are found, return an empty array: []`
             }
           ]
         }
@@ -85,6 +129,7 @@ If no Sicilian dishes are found, return an empty array: []`
     });
 
     console.log('Successfully received response from Claude API');
+    console.log('Raw Claude response:', JSON.stringify(message.content[0].text, null, 2));
 
     // Return the response to frontend
     res.json({

@@ -142,8 +142,8 @@
 
 <main>
   <header>
-    <h1>Sicilian Menu Translator</h1>
-    <p>Upload a menu photo to identify Sicilian dishes</p>
+    <h1>Menu Translator</h1>
+    <p>Upload a menu photo to identify and explain dishes from any cuisine</p>
   </header>
 
   <div class="container">
@@ -181,7 +181,7 @@
           </div>
         {:else if matchedTerms.length > 0}
           <div class="matches">
-            <h2>Found {matchedTerms.length} Sicilian {matchedTerms.length === 1 ? 'dish' : 'dishes'}:</h2>
+            <h2>Found {matchedTerms.length} {matchedTerms.length === 1 ? 'dish' : 'dishes'}:</h2>
             <div class="term-list">
               {#each matchedTerms as term}
                 <div class="term-card">
@@ -205,8 +205,8 @@
           </div>
         {:else}
           <div class="no-matches">
-            <p>No Sicilian dishes found in this image.</p>
-            <p class="hint">Make sure the photo is clear and includes Sicilian menu items.</p>
+            <p>No dishes identified in this image.</p>
+            <p class="hint">Make sure the photo is clear and shows menu items with dish names.</p>
           </div>
         {/if}
 

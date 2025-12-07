@@ -1,7 +1,7 @@
 {
-  "name": "sicilian-menu-translator",
-  "version": "1.0.0",
-  "description": "MVP app to identify Sicilian culinary terms from menu photos",
+  "name": "menu-lexicon",
+  "version": "2.0.0",
+  "description": "Elegant menu translator with interactive dish annotations using Claude Vision AI",
   "type": "module",
   "scripts": {
     "dev": "vite",

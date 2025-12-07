@@ -1,148 +1,183 @@
-1# 🍝 Sicilian Menu Translator
+# Menu Lexicon
 
-A mobile-first web app that identifies Sicilian culinary terms from menu photos and provides English definitions.
+An elegant menu translator that identifies and explains culinary terms from any cuisine using Claude Vision AI. Upload a menu photo and see interactive markers positioned at each dish, with concise definitions on click.
 
 ## Features
 
-- 📷 Mobile camera capture or desktop file upload
-- 🔍 OCR-powered text extraction using Tesseract.js
-- 📖 Dictionary of 15 classic Sicilian dishes
-- ✨ Clean, expandable term definitions
-- 📱 Responsive design for mobile and desktop
+- 🎯 **Interactive Annotations** - Clickable numbered markers positioned directly on dishes
+- 🌍 **Universal Cuisine Support** - Italian, Chinese, Japanese, French, Mexican, Thai, and more
+- 🤖 **Claude Vision AI** - Powered by Anthropic's Claude Sonnet 4 for accurate dish identification
+- ✨ **Elegant Design** - Minimalist fine-dining aesthetic inspired by high-end restaurant menus
+- 📱 **Mobile-First** - Responsive design with camera capture on mobile devices
+- 💬 **Concise Definitions** - 3-8 word explanations highlighting what makes each dish special
 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18+ and npm installed
-- Modern web browser (Chrome, Safari, Firefox, Edge)
+- Node.js 18+ and npm
+- Anthropic API key ([get one here](https://console.anthropic.com/))
 
 ### Installation
 
-1. Extract this ZIP file to a folder
-2. Open terminal/command prompt in that folder
-3. Install dependencies:
+1. Clone and install dependencies:
 ```bash
+git clone <repository-url>
+cd menu-lexicon
 npm install
 ```
 
-4. Start development server:
+2. Create `.env` file with your API key:
 ```bash
-npm run dev
+cp .env.example .env
+# Edit .env and add: VITE_ANTHROPIC_API_KEY=your_key_here
 ```
 
-5. Open browser to `http://localhost:5173`
-
-### Testing the App
-
-#### On Mobile:
-1. Open the localhost URL on your phone (make sure phone is on same WiFi)
-2. Tap "Analyze Menu Photo"
-3. Device camera will open
-4. Take photo of a Sicilian menu
-5. Wait 5-10 seconds for OCR processing
-6. Tap matched terms to see definitions
-
-#### On Desktop:
-1. Open the localhost URL in your browser
-2. Click "Analyze Menu Photo"
-3. Select a screenshot or photo of a menu
-4. Same processing and results as mobile
-
-### Building for Production
-
+3. Start both frontend and backend servers:
 ```bash
-npm run build
+npm run dev:all
 ```
 
-This creates an optimized build in the `dist/` folder that you can deploy to any static hosting service (Netlify, Vercel, GitHub Pages, etc.).
+4. Open [http://localhost:5173](http://localhost:5173)
 
-## Supported Sicilian Dishes
+## How It Works
 
-The MVP includes 15 classic Sicilian terms:
-- Arancini
-- Caponata
-- Sfincione
-- Cannoli
-- Pasta alla Norma
-- Granita
-- Cassata
-- Involtini
-- Panelle
-- Sarde a Beccafico
-- Pasta con le Sarde
-- Caciocavallo
-- Pani ca Meusa
-- Busiate
-- Brioche col Gelato
+1. **Upload** - Click "Analyze Menu Photo" and select/capture a menu image
+2. **Analysis** - Claude Vision AI identifies notable dishes and estimates their positions
+3. **Interact** - Numbered markers appear on the image; click any marker to see the dish definition
+4. **Learn** - Brief explanations highlight cultural significance and key characteristics
 
-## Technical Stack
+## Architecture
 
-- **Frontend:** Svelte 4
-- **Build Tool:** Vite
-- **OCR:** Tesseract.js v5
-- **Styling:** Vanilla CSS
+**Frontend (Svelte + Vite)**
+- Single-page app with Svelte reactivity
+- Interactive image overlay with positioned markers
+- Elegant serif typography and minimalist design
+- Mobile camera integration via HTML5 `capture` attribute
+
+**Backend (Express + Node)**
+- Proxies requests to Anthropic API (avoids CORS)
+- Claude Sonnet 4 with vision capabilities
+- Processes base64-encoded images
+- Returns dishes with names, definitions, and position coordinates
+
+**API Integration**
+- Frontend → Express Backend (`/api/analyze`)
+- Backend → Anthropic Messages API
+- Claude analyzes image and returns JSON with position data
 
 ## Project Structure
 
 ```
-sicilian-menu-translator/
+menu-lexicon/
 ├── src/
-│   ├── App.svelte        # Main component
-│   ├── dictionary.js     # Sicilian terms database
+│   ├── App.svelte       # Main UI component with markers & popups
 │   └── main.js          # App bootstrap
-├── index.html           # HTML entry point
-├── package.json         # Dependencies
-├── vite.config.js       # Vite configuration
-├── IMPLEMENTATION.md    # Technical documentation
-└── README.md           # This file
+├── server.js            # Express backend with Claude API integration
+├── vite.config.js       # Dev server with API proxy
+├── package.json         # Dependencies and scripts
+├── .env.example         # API key template
+├── CLAUDE.md            # Development guide
+└── README.md            # This file
 ```
 
-## How It Works
+## Key Technologies
 
-1. **Image Upload:** User selects image via file input (triggers camera on mobile)
-2. **OCR Processing:** Tesseract.js extracts text from image (~5-10 seconds)
-3. **Dictionary Matching:** Extracted text is matched against dictionary terms (case-insensitive)
-4. **Display Results:** Matched terms shown as expandable cards with definitions
+- **Frontend:** Svelte 4, Vite 5
+- **Backend:** Express 4, Node.js
+- **AI:** Anthropic Claude Sonnet 4 (Vision API)
+- **Styling:** Vanilla CSS with Georgia serif font
+- **Color Palette:** Black (#1a1a1a) and warm white (#fafaf8)
 
-## Known Limitations
+## Intelligent Selection
 
-- OCR accuracy ~85-90% on clear photos
-- Processing time 5-10 seconds on mobile devices
-- Requires internet connection to load Tesseract WASM library
-- Only supports 15 Sicilian dishes in MVP
-- No image quality optimization
+The app is smart about what it identifies:
+
+✅ **Includes:**
+- Culturally specific dishes (Risotto ai Funghi, Mapo Tofu, Yakisoba)
+- Regional specialties (Osso Buco, Xiaolongbao, Tempura)
+- Dishes with special preparation methods
+
+❌ **Skips:**
+- Basic ingredients everyone knows (plain tuna, rice, chicken)
+- Generic items without special preparation
+- Familiar terms in compound names (extracts "Karaage" from "Chicken Karaage")
+
+## Development
+
+### Available Commands
+
+```bash
+npm run dev        # Frontend only (Vite dev server)
+npm run server     # Backend only (Express server)
+npm run dev:all    # Both servers concurrently
+npm run build      # Production build
+npm run preview    # Preview production build
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_ANTHROPIC_API_KEY` | Your Anthropic API key |
+| `PORT` | Backend server port (default: 3000) |
+
+## Design Philosophy
+
+Inspired by fine dining restaurant menus (Thomas Keller, French Laundry):
+- **Typography:** Georgia serif for warmth and sophistication
+- **Colors:** Minimal palette - black, white, subtle grays
+- **Layout:** Generous whitespace, clean lines, no clutter
+- **Interactions:** Subtle hover states, smooth transitions
+- **Accessibility:** High contrast, clear labeling, keyboard-friendly
+
+## API Response Format
+
+Claude returns JSON with this structure:
+
+```json
+[
+  {
+    "name": "Osso Buco",
+    "definition": "Milanese braised veal shanks",
+    "position": {"x": 25, "y": 30}
+  }
+]
+```
+
+- `name`: Dish name as it appears on the menu
+- `definition`: 3-8 word explanation
+- `position`: Percentages from top-left (x: 0-100, y: 0-100)
 
 ## Future Enhancements
 
-- Word-level coordinate overlays on image
-- Real-time camera preview
-- Browser extension for desktop
-- Offline PWA support
-- Expanded dictionary (100+ terms)
-- Multiple language support
-- User-submitted term database
+- [ ] Multiple language support for definitions
+- [ ] Save favorite dishes to local storage
+- [ ] Export annotated menu as PDF
+- [ ] Browser extension for quick menu translation
+- [ ] Offline support with cached translations
+- [ ] User feedback to improve position accuracy
 
 ## Troubleshooting
 
-**Camera not opening on mobile:**
-- Ensure HTTPS or localhost
-- Check browser permissions for camera access
-- Try in Safari (Chrome on iOS uses Safari engine)
+**No dishes identified:**
+- Restart servers with `npm run dev:all` to ensure updated prompt is loaded
+- Check backend logs for Claude's raw response
+- Ensure image shows dish names clearly
 
-**OCR not working:**
-- Check browser console for errors
-- Ensure stable internet connection (to download Tesseract)
-- Try a clearer, well-lit photo
+**Markers in wrong positions:**
+- Claude estimates positions - accuracy varies with menu layout
+- Works best with clear, well-structured menus
+- Position refinement happens over time as prompt improves
 
-**Terms not matching:**
-- Ensure menu has Sicilian dishes (not just Italian)
-- Check spelling in OCR console log
-- Photo may need better lighting/focus
+**API errors:**
+- Verify API key in `.env` file
+- Check Anthropic dashboard for rate limits
+- Ensure stable internet connection
 
 ## License
 
-MIT - Free to use and modify
+MIT
 
-## Support
+## Credits
 
-For technical details and development guide, see [CLAUDE.md](CLAUDE.md)
+Built with Claude Code - UI redesign inspired by Thomas Keller's fine dining aesthetic.

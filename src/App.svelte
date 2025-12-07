@@ -414,7 +414,7 @@
     max-width: 900px;
     margin: 0 auto;
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
   }
 
@@ -424,6 +424,7 @@
     max-height: 80vh;
     object-fit: contain;
     background: #f8f9fa;
+    border-radius: 12px;
   }
 
   /* Overlay messages (processing, error, no matches) */

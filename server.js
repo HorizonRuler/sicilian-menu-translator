@@ -77,16 +77,18 @@ CRITICAL INSTRUCTIONS FOR ROTATED/UNCLEAR IMAGES:
 
 For EACH dish you find, provide:
 1. The dish name (exactly as it appears on the menu, including any non-English characters)
-2. A brief, informative explanation that includes:
-   - What the dish is and its key ingredients
-   - Its cultural/culinary origin and significance
-   - Any interesting preparation methods or traditions
+2. A VERY SHORT definition (3-8 words max) highlighting what's notable about the dish
 
-IMPORTANT:
-- Scan the ENTIRE menu - identify ALL dishes you can see
-- Include dishes from ANY cuisine: Italian, Chinese, Japanese, French, Mexican, Indian, Thai, American, etc.
-- If text is in a foreign language or script (Chinese characters, Italian, French, etc.), include it in the dish name
-- Include both the original name and English translation/transliteration when applicable
+CRITICAL - What to Include/Exclude:
+- ONLY include dishes that are culturally specific, regionally notable, or have special preparation
+- SKIP basic ingredients or common items everyone knows (e.g., plain "Tuna", "Chicken", "Rice", "Salad")
+- When a dish has familiar + unfamiliar words, extract ONLY the unfamiliar term:
+  * "Chicken Karaage" → just identify "Karaage"
+  * "Pork Belly Yakisoba" → just identify "Yakisoba"
+  * "Veggie Tempura" → just identify "Tempura"
+- INCLUDE dishes with specific preparation or cultural significance (e.g., "Karaage", "Risotto ai Funghi", "Mapo Tofu")
+- If text is in a foreign language, include it in the dish name with translation
+- Scan the ENTIRE menu - identify all notable dishes from ANY cuisine
 
 Examples of what to identify:
 - Italian: Risotto, Osso Buco, Tiramisu, Carbonara, Margherita Pizza, Bruschetta, Panna Cotta
@@ -102,17 +104,17 @@ Return your response as a JSON array of objects with this structure:
 [
   {
     "name": "Osso Buco",
-    "definition": "A Milanese specialty of braised veal shanks cooked with vegetables, white wine, and broth. The marrow in the bone center is considered a delicacy.",
+    "definition": "Milanese braised veal shanks",
     "position": {"x": 25, "y": 30}
   },
   {
     "name": "Risotto ai Funghi",
-    "definition": "A creamy Northern Italian rice dish made with arborio rice and mushrooms, slowly cooked with broth, white wine, butter, and Parmesan cheese.",
+    "definition": "Creamy rice with mushrooms",
     "position": {"x": 25, "y": 50}
   },
   {
     "name": "宫保鸡丁 (Kung Pao Chicken)",
-    "definition": "A Sichuan dish featuring diced chicken stir-fried with peanuts, vegetables, and chili peppers in a savory-sweet sauce.",
+    "definition": "Sichuan stir-fry with peanuts",
     "position": {"x": 25, "y": 70}
   }
 ]
@@ -128,11 +130,12 @@ CRITICAL - Position Information:
 - Be as accurate as possible - these positions will be used to place clickable markers on the image
 
 Guidelines:
-- Focus on complete dishes/menu items, not individual ingredients
-- Skip generic items like "Salad" or "Bread" unless they have a specific preparation (e.g., "Caesar Salad", "Garlic Bread")
-- For foreign language menus, include the original text and translation
-- Provide cultural context when relevant (e.g., "a traditional Sicilian dish", "popular Cantonese dim sum")
-- If you're unsure about a dish's origin, still include it with your best explanation
+- Definitions must be 3-8 words maximum - be extremely concise
+- Only include dishes with cultural significance or special preparation
+- Skip basic ingredients everyone knows (plain tuna, rice, chicken, etc.)
+- Skip generic items unless specifically prepared (e.g., include "Caesar Salad", skip plain "Salad")
+- For foreign language menus, include original text with translation
+- Focus on what makes each dish special or notable
 
 If no identifiable dishes are found, return an empty array: []`
             }

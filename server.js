@@ -102,17 +102,30 @@ Return your response as a JSON array of objects with this structure:
 [
   {
     "name": "Osso Buco",
-    "definition": "A Milanese specialty of braised veal shanks cooked with vegetables, white wine, and broth. The marrow in the bone center is considered a delicacy."
+    "definition": "A Milanese specialty of braised veal shanks cooked with vegetables, white wine, and broth. The marrow in the bone center is considered a delicacy.",
+    "position": {"x": 25, "y": 30}
   },
   {
     "name": "Risotto ai Funghi",
-    "definition": "A creamy Northern Italian rice dish made with arborio rice and mushrooms, slowly cooked with broth, white wine, butter, and Parmesan cheese."
+    "definition": "A creamy Northern Italian rice dish made with arborio rice and mushrooms, slowly cooked with broth, white wine, butter, and Parmesan cheese.",
+    "position": {"x": 25, "y": 50}
   },
   {
     "name": "宫保鸡丁 (Kung Pao Chicken)",
-    "definition": "A Sichuan dish featuring diced chicken stir-fried with peanuts, vegetables, and chili peppers in a savory-sweet sauce."
+    "definition": "A Sichuan dish featuring diced chicken stir-fried with peanuts, vegetables, and chili peppers in a savory-sweet sauce.",
+    "position": {"x": 25, "y": 70}
   }
 ]
+
+CRITICAL - Position Information:
+- For EACH dish, estimate where it appears on the menu image
+- "position" should contain "x" and "y" as percentages (0-100) from the top-left corner
+- x: 0 = far left edge, 50 = horizontal center, 100 = far right edge
+- y: 0 = top edge, 50 = vertical center, 100 = bottom edge
+- Estimate the position of the dish NAME on the menu (not the description)
+- If dishes are in a vertical list, they should have similar x values but different y values
+- If dishes are in multiple columns, vary both x and y values accordingly
+- Be as accurate as possible - these positions will be used to place clickable markers on the image
 
 Guidelines:
 - Focus on complete dishes/menu items, not individual ingredients

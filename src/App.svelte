@@ -4,7 +4,7 @@
   let imagePreview = null;
   let isProcessing = false;
   let matchedTerms = [];
-  let expandedTerms = {};
+  let selectedTerm = null;
   let error = null;
 
   // Handle image upload from file input
@@ -16,7 +16,7 @@
     imageFile = file;
     error = null;
     matchedTerms = [];
-    expandedTerms = {};
+    selectedTerm = null;
 
     // Wait for preview to load first
     try {
@@ -87,8 +87,11 @@
         const jsonMatch = responseText.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          // Validate structure
-          if (Array.isArray(parsed) && parsed.every(item => item.name && item.definition)) {
+          // Validate structure - now requires position data
+          if (Array.isArray(parsed) && parsed.every(item =>
+            item.name && item.definition && item.position &&
+            typeof item.position.x === 'number' && typeof item.position.y === 'number'
+          )) {
             matchedTerms = parsed;
           } else {
             console.warn('Invalid dish structure in response:', parsed);
@@ -123,10 +126,9 @@
   }
 
 
-  // Toggle term expansion
-  function toggleTerm(termName) {
-    expandedTerms[termName] = !expandedTerms[termName];
-    expandedTerms = expandedTerms; // Trigger reactivity
+  // Select a term to show its definition
+  function selectTerm(term) {
+    selectedTerm = selectedTerm === term ? null : term;
   }
 
   // Reset to initial state
@@ -135,7 +137,7 @@
     imagePreview = null;
     isProcessing = false;
     matchedTerms = [];
-    expandedTerms = {};
+    selectedTerm = null;
     error = null;
   }
 </script>
@@ -162,53 +164,57 @@
         />
       </div>
     {:else}
-      <!-- Image preview and results -->
+      <!-- Image preview and interactive markers -->
       <div class="results-section">
-        <div class="results-content">
-          <div class="image-preview">
-            <img src={imagePreview} alt="Menu preview" />
-          </div>
+        <div class="image-container">
+          <img src={imagePreview} alt="Menu preview" />
 
           {#if isProcessing}
-          <div class="processing">
-            <div class="spinner"></div>
-            <p>Analyzing menu with AI...</p>
-            <p class="hint">This may take a few seconds</p>
-          </div>
-        {:else if error}
-          <div class="error">
-            <p>{error}</p>
-            <button on:click={reset}>Try Another Photo</button>
-          </div>
-        {:else if matchedTerms.length > 0}
-          <div class="matches">
-            <h2>Found {matchedTerms.length} {matchedTerms.length === 1 ? 'dish' : 'dishes'}:</h2>
-            <div class="term-list">
-              {#each matchedTerms as term}
-                <div class="term-card">
-                  <button 
-                    class="term-header"
-                    on:click={() => toggleTerm(term.name)}
-                  >
-                    <span class="term-name">{term.name}</span>
-                    <span class="toggle-icon">
-                      {expandedTerms[term.name] ? '−' : '+'}
-                    </span>
-                  </button>
-                  {#if expandedTerms[term.name]}
-                    <div class="term-definition">
-                      {term.definition}
-                    </div>
-                  {/if}
-                </div>
-              {/each}
+            <div class="overlay-message">
+              <div class="spinner"></div>
+              <p>Analyzing menu with AI...</p>
+              <p class="hint">This may take a few seconds</p>
             </div>
-          </div>
-        {:else}
-          <div class="no-matches">
-            <p>No dishes identified in this image.</p>
-            <p class="hint">Make sure the photo is clear and shows menu items with dish names.</p>
-          </div>
+          {:else if error}
+            <div class="overlay-message error-overlay">
+              <p>{error}</p>
+              <button on:click={reset}>Try Another Photo</button>
+            </div>
+          {:else if matchedTerms.length > 0}
+            <!-- Clickable markers for each dish -->
+            {#each matchedTerms as term, index}
+              <button
+                class="marker"
+                class:active={selectedTerm === term}
+                style="left: {term.position.x}%; top: {term.position.y}%;"
+                on:click={() => selectTerm(term)}
+                aria-label="View {term.name}"
+              >
+                {index + 1}
+              </button>
+            {/each}
+
+            <!-- Popup for selected term -->
+            {#if selectedTerm}
+              <div
+                class="popup"
+                style="left: {selectedTerm.position.x}%; top: {selectedTerm.position.y}%;"
+              >
+                <button class="popup-close" on:click={() => selectedTerm = null}>×</button>
+                <h3>{selectedTerm.name}</h3>
+                <p>{selectedTerm.definition}</p>
+              </div>
+            {/if}
+
+            <!-- Info hint -->
+            <div class="info-hint">
+              Click the numbered markers to learn about each dish
+            </div>
+          {:else}
+            <div class="overlay-message">
+              <p>No dishes identified in this image.</p>
+              <p class="hint">Make sure the photo is clear and shows menu items with dish names.</p>
+            </div>
           {/if}
         </div>
 
@@ -399,37 +405,53 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
+    align-items: center;
   }
 
-  .results-content {
-    display: flex;
-    flex-direction: row;
-    gap: 24px;
-    align-items: flex-start;
-  }
-
-  .image-preview {
-    flex: 0 0 auto;
-    max-width: 400px;
-    position: sticky;
-    top: 20px;
-    align-self: flex-start;
-  }
-
-  .image-preview img {
+  .image-container {
+    position: relative;
     width: 100%;
-    max-height: calc(100vh - 200px);
-    object-fit: contain;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.03);
+    max-width: 900px;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
   }
 
-  /* Processing state */
-  .processing {
-    flex: 1;
+  .image-container img {
+    width: 100%;
+    display: block;
+    max-height: 80vh;
+    object-fit: contain;
+    background: #f8f9fa;
+  }
+
+  /* Overlay messages (processing, error, no matches) */
+  .overlay-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.95);
+    padding: 32px 40px;
+    border-radius: 16px;
     text-align: center;
-    padding: 40px 20px;
-    max-width: 500px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+    max-width: 400px;
+    z-index: 10;
+  }
+
+  .overlay-message p {
+    margin: 12px 0;
+    color: #374151;
+    font-weight: 500;
+  }
+
+  .overlay-message .hint {
+    font-size: 0.9rem;
+    color: #6b7280;
+    font-weight: 400;
   }
 
   .spinner {
@@ -447,34 +469,13 @@
     100% { transform: rotate(360deg); }
   }
 
-  .processing p {
-    margin: 12px 0;
-    color: #374151;
-    font-weight: 500;
-  }
-
-  .hint {
-    font-size: 0.9rem;
-    color: #6b7280;
-    font-weight: 400;
-  }
-
-  /* Error state */
-  .error {
-    flex: 1;
-    text-align: center;
-    padding: 40px 20px;
-    max-width: 500px;
-  }
-
-  .error p {
+  .error-overlay p:first-child {
     color: #ef4444;
     font-size: 1.1rem;
     font-weight: 600;
-    margin-bottom: 20px;
   }
 
-  .error button {
+  .error-overlay button {
     margin-top: 16px;
     padding: 12px 24px;
     background: #ef4444;
@@ -484,129 +485,145 @@
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s;
   }
 
-  .error button:hover {
+  .error-overlay button:hover {
     background: #dc2626;
     transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
   }
 
-  .error button:active {
-    transform: scale(0.98);
-  }
-
-  /* Matches section */
-  .matches {
-    flex: 1;
-    max-width: 600px;
-  }
-
-  .matches h2 {
-    margin: 0 0 24px 0;
-    font-size: 1.4rem;
-    font-weight: 600;
-    color: #111827;
-    text-align: center;
-    letter-spacing: -0.01em;
-  }
-
-  .term-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    max-width: 600px;
-    margin: 0 auto;
-  }
-
-  .term-card {
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
-    overflow: hidden;
-    background: white;
-    transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  }
-
-  .term-card:hover {
-    border-color: #ff6b6b;
-    box-shadow: 0 8px 16px rgba(255, 107, 107, 0.15), 0 4px 8px rgba(255, 107, 107, 0.08);
-    transform: translateY(-4px);
-  }
-
-  .term-header {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 24px;
-    background: white;
-    border: none;
-    cursor: pointer;
+  /* Markers */
+  .marker {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+    color: white;
+    border: 3px solid white;
+    border-radius: 50%;
     font-size: 1rem;
-    text-align: left;
-    transition: background 0.2s;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4), 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .term-header:hover {
-    background: #f8f9fa;
+  .marker:hover {
+    transform: translate(-50%, -50%) scale(1.15);
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.5), 0 3px 10px rgba(0, 0, 0, 0.2);
   }
 
-  .term-name {
-    font-weight: 600;
-    color: #111827;
-    font-size: 1.15rem;
-    letter-spacing: -0.01em;
+  .marker.active {
+    background: linear-gradient(135deg, #ee5a6f 0%, #dc2626 100%);
+    transform: translate(-50%, -50%) scale(1.2);
+    box-shadow: 0 8px 24px rgba(255, 107, 107, 0.6), 0 4px 12px rgba(0, 0, 0, 0.25);
   }
 
-  .toggle-icon {
-    font-size: 1.5rem;
-    color: #ff6b6b;
-    font-weight: 300;
-    min-width: 24px;
-    text-align: center;
+  /* Popup */
+  .popup {
+    position: absolute;
+    transform: translate(-50%, calc(-100% - 50px));
+    background: white;
+    padding: 20px 24px;
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-width: 320px;
+    min-width: 280px;
+    z-index: 15;
+    border: 2px solid #ff6b6b;
+    animation: popupAppear 0.2s ease-out;
   }
 
-  .term-definition {
-    padding: 20px 24px 24px 24px;
-    background: #f8f9fa;
-    border-top: 1px solid #e5e7eb;
-    color: #4b5563;
-    line-height: 1.8;
-    font-size: 0.975rem;
-    animation: slideDown 0.3s ease-out;
-  }
-
-  @keyframes slideDown {
+  @keyframes popupAppear {
     from {
       opacity: 0;
-      transform: translateY(-10px);
+      transform: translate(-50%, calc(-100% - 40px)) scale(0.95);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translate(-50%, calc(-100% - 50px)) scale(1);
     }
   }
 
-  /* No matches state */
-  .no-matches {
-    flex: 1;
-    text-align: center;
-    padding: 40px 20px;
-    max-width: 500px;
+  .popup::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid #ff6b6b;
   }
 
-  .no-matches p {
-    margin: 12px 0;
+  .popup-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    background: #f3f4f6;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
     color: #6b7280;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
   }
 
-  .no-matches p:first-child {
-    font-size: 1.2rem;
-    font-weight: 600;
+  .popup-close:hover {
+    background: #e5e7eb;
     color: #374151;
+  }
+
+  .popup h3 {
+    margin: 0 0 12px 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #111827;
+    padding-right: 24px;
+  }
+
+  .popup p {
+    margin: 0;
+    color: #4b5563;
+    line-height: 1.6;
+    font-size: 0.95rem;
+  }
+
+  /* Info hint */
+  .info-hint {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    backdrop-filter: blur(8px);
+    z-index: 5;
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   /* Reset button */
@@ -662,26 +679,41 @@
       font-size: 1rem;
     }
 
-    /* Stack vertically on mobile */
-    .results-content {
-      flex-direction: column;
-    }
-
-    .image-preview {
-      max-width: 100%;
-    }
-
     .reset-button {
       width: 100%;
       min-width: auto;
     }
 
-    .image-preview img {
-      max-height: 300px;
+    .image-container {
+      border-radius: 8px;
     }
 
-    .term-name {
-      font-size: 1rem;
+    .marker {
+      width: 32px;
+      height: 32px;
+      font-size: 0.9rem;
+    }
+
+    .popup {
+      max-width: 260px;
+      min-width: 240px;
+      padding: 16px 20px;
+      font-size: 0.9rem;
+    }
+
+    .popup h3 {
+      font-size: 1.1rem;
+    }
+
+    .info-hint {
+      font-size: 0.85rem;
+      padding: 8px 16px;
+      bottom: 12px;
+    }
+
+    .overlay-message {
+      padding: 24px 28px;
+      max-width: 90%;
     }
   }
 </style>

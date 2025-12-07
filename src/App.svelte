@@ -164,11 +164,12 @@
     {:else}
       <!-- Image preview and results -->
       <div class="results-section">
-        <div class="image-preview">
-          <img src={imagePreview} alt="Menu preview" />
-        </div>
+        <div class="results-content">
+          <div class="image-preview">
+            <img src={imagePreview} alt="Menu preview" />
+          </div>
 
-        {#if isProcessing}
+          {#if isProcessing}
           <div class="processing">
             <div class="spinner"></div>
             <p>Analyzing menu with AI...</p>
@@ -208,7 +209,8 @@
             <p>No dishes identified in this image.</p>
             <p class="hint">Make sure the photo is clear and shows menu items with dish names.</p>
           </div>
-        {/if}
+          {/if}
+        </div>
 
         {#if !isProcessing}
           <button class="reset-button" on:click={reset}>
@@ -230,8 +232,23 @@
     margin: 0;
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: #f9fafb;
+    background:
+      radial-gradient(circle at 20% 50%, rgba(255, 107, 107, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(255, 127, 80, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(238, 90, 111, 0.08) 0%, transparent 50%),
+      linear-gradient(135deg, #fff5f0 0%, #ffe8e0 50%, #fff0e8 100%);
+    background-size: 100% 100%;
+    animation: backgroundShift 20s ease infinite;
     min-height: 100vh;
+  }
+
+  @keyframes backgroundShift {
+    0%, 100% {
+      background-position: 0% 0%, 100% 100%, 50% 20%, 0% 0%;
+    }
+    50% {
+      background-position: 100% 100%, 0% 0%, 80% 50%, 0% 0%;
+    }
   }
 
   main {
@@ -239,41 +256,116 @@
     margin: 0 auto;
     padding: 20px;
     min-height: 100vh;
+    position: relative;
+  }
+
+  /* Decorative background elements */
+  main::before,
+  main::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  main::before {
+    width: 600px;
+    height: 600px;
+    top: -200px;
+    right: -200px;
+    background: radial-gradient(circle, #ff6b6b 0%, transparent 70%);
+    animation: float1 25s ease-in-out infinite;
+  }
+
+  main::after {
+    width: 500px;
+    height: 500px;
+    bottom: -150px;
+    left: -150px;
+    background: radial-gradient(circle, #ff7f50 0%, transparent 70%);
+    animation: float2 20s ease-in-out infinite;
+  }
+
+  @keyframes float1 {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    33% { transform: translate(50px, 50px) rotate(120deg); }
+    66% { transform: translate(-30px, 80px) rotate(240deg); }
+  }
+
+  @keyframes float2 {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    33% { transform: translate(-40px, -40px) rotate(-120deg); }
+    66% { transform: translate(60px, -60px) rotate(-240deg); }
   }
 
   /* Header */
   header {
     text-align: center;
-    color: #111827;
     margin-bottom: 30px;
+    padding: 20px;
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 50%, #ff7f50 100%);
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
   }
 
   h1 {
     margin: 0;
-    font-size: 2rem;
+    font-size: 2.2rem;
     font-weight: 700;
     letter-spacing: -0.02em;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
   header p {
     margin: 10px 0 0 0;
-    opacity: 0.9;
     font-size: 1rem;
+    color: rgba(255, 255, 255, 0.95);
   }
 
   /* Container */
   .container {
-    background: white;
     border-radius: 16px;
     padding: 30px;
-    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
     min-height: 300px;
+  }
+
+  /* White container only when showing results */
+  .container:has(.results-section) {
+    background: white;
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
   }
 
   /* Upload section */
   .upload-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
     text-align: center;
     padding: 60px 20px;
+    position: relative;
+  }
+
+  /* Decorative food icons */
+  .upload-section::before {
+    content: '🍽️';
+    position: absolute;
+    font-size: 120px;
+    opacity: 0.04;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: pulse 4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.04; }
+    50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.06; }
   }
 
   #imageInput {
@@ -282,21 +374,20 @@
 
   .upload-button {
     display: inline-block;
-    background: #2563eb;
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
     color: white;
-    padding: 16px 32px;
+    padding: 18px 40px;
     font-size: 1.1rem;
     font-weight: 600;
-    border-radius: 8px;
+    border-radius: 12px;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
   }
 
   .upload-button:hover {
-    background: #1d4ed8;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
   }
 
   .upload-button:active {
@@ -310,31 +401,43 @@
     gap: 24px;
   }
 
+  .results-content {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
   .image-preview {
-    text-align: center;
+    flex: 0 0 auto;
+    max-width: 400px;
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
   }
 
   .image-preview img {
-    max-width: 100%;
-    max-height: 400px;
+    width: 100%;
+    max-height: calc(100vh - 200px);
+    object-fit: contain;
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.03);
   }
 
   /* Processing state */
   .processing {
+    flex: 1;
     text-align: center;
     padding: 40px 20px;
     max-width: 500px;
-    margin: 0 auto;
   }
 
   .spinner {
     width: 50px;
     height: 50px;
     margin: 0 auto 20px;
-    border: 4px solid #e5e7eb;
-    border-top: 4px solid #2563eb;
+    border: 4px solid #ffe8e0;
+    border-top: 4px solid #ff6b6b;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -358,10 +461,10 @@
 
   /* Error state */
   .error {
+    flex: 1;
     text-align: center;
     padding: 40px 20px;
     max-width: 500px;
-    margin: 0 auto;
   }
 
   .error p {
@@ -397,8 +500,8 @@
 
   /* Matches section */
   .matches {
+    flex: 1;
     max-width: 600px;
-    margin: 0 auto;
   }
 
   .matches h2 {
@@ -428,8 +531,8 @@
   }
 
   .term-card:hover {
-    border-color: #2563eb;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
+    border-color: #ff6b6b;
+    box-shadow: 0 8px 16px rgba(255, 107, 107, 0.15), 0 4px 8px rgba(255, 107, 107, 0.08);
     transform: translateY(-4px);
   }
 
@@ -460,7 +563,7 @@
 
   .toggle-icon {
     font-size: 1.5rem;
-    color: #2563eb;
+    color: #ff6b6b;
     font-weight: 300;
     min-width: 24px;
     text-align: center;
@@ -489,10 +592,10 @@
 
   /* No matches state */
   .no-matches {
+    flex: 1;
     text-align: center;
     padding: 40px 20px;
     max-width: 500px;
-    margin: 0 auto;
   }
 
   .no-matches p {
@@ -508,26 +611,24 @@
 
   /* Reset button */
   .reset-button {
-    width: 100%;
-    max-width: 300px;
-    margin: 0 auto;
-    display: block;
-    padding: 14px 24px;
-    background: #2563eb;
+    align-self: center;
+    width: auto;
+    min-width: 250px;
+    padding: 14px 32px;
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
     color: white;
     border: none;
     border-radius: 10px;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
   }
 
   .reset-button:hover {
-    background: #1d4ed8;
     transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12), 0 3px 6px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
   }
 
   .reset-button:active {
@@ -538,7 +639,7 @@
   footer {
     text-align: center;
     margin-top: 30px;
-    color: #6b7280;
+    color: #9ca3af;
     font-size: 0.9rem;
   }
 
@@ -559,6 +660,20 @@
     .upload-button {
       padding: 14px 28px;
       font-size: 1rem;
+    }
+
+    /* Stack vertically on mobile */
+    .results-content {
+      flex-direction: column;
+    }
+
+    .image-preview {
+      max-width: 100%;
+    }
+
+    .reset-button {
+      width: 100%;
+      min-width: auto;
     }
 
     .image-preview img {

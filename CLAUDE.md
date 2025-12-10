@@ -256,7 +256,7 @@ server: {
 - **Performance:** Compiles to vanilla JS (no virtual DOM overhead)
 
 **Universal cuisine support:**
-- Removed hardcoded Sicilian dictionary
+- No hardcoded dictionary - Claude identifies dishes directly from its training data
 - Prompt includes examples from 8+ cuisines (Italian, Chinese, Japanese, French, Mexican, Indian, Thai, American)
 - Claude's training data covers global culinary terms
 

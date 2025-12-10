@@ -45,9 +45,10 @@
         return;
       }
 
-      // Convert file to base64
-      const base64Image = await fileToBase64(file);
+      // Convert and compress file to base64 (stay under 5MB API limit)
+      const base64Image = await compressImage(file);
       const base64Data = base64Image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+      const mediaType = base64Image.startsWith('data:image/jpeg') ? 'image/jpeg' : file.type;
 
       // Call our backend API (no CORS issues!)
       const response = await fetch('/api/analyze', {
@@ -57,7 +58,7 @@
         },
         body: JSON.stringify({
           image: base64Data,
-          mediaType: file.type
+          mediaType: mediaType
         })
       });
 
@@ -87,10 +88,9 @@
         const jsonMatch = responseText.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          // Validate structure - now requires position data
+          // Validate structure
           if (Array.isArray(parsed) && parsed.every(item =>
-            item.name && item.definition && item.position &&
-            typeof item.position.x === 'number' && typeof item.position.y === 'number'
+            item.name && item.definition
           )) {
             matchedTerms = parsed;
           } else {
@@ -122,6 +122,48 @@
       reader.onload = () => resolve(reader.result);
       reader.onerror = reject;
       reader.readAsDataURL(file);
+    });
+  }
+
+  // Compress image to stay under 5MB API limit
+  async function compressImage(file) {
+    const maxSizeBytes = 3.5 * 1024 * 1024; // Target 3.5MB for safety buffer
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+
+        // Always resize large phone photos (most are 4000+ pixels)
+        const maxDim = 1600;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.floor(width * ratio);
+          height = Math.floor(height * ratio);
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Start with good quality, reduce until under limit
+        let quality = 0.8;
+        let result = canvas.toDataURL('image/jpeg', quality);
+
+        while (result.length * 0.75 > maxSizeBytes && quality > 0.2) {
+          quality -= 0.1;
+          result = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        const finalSizeMB = (result.length * 0.75 / 1024 / 1024).toFixed(2);
+        console.log(`Compressed: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${finalSizeMB}MB (q=${quality.toFixed(1)}, ${width}x${height})`);
+        resolve(result);
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
     });
   }
 
@@ -164,64 +206,61 @@
         />
       </div>
     {:else}
-      <!-- Image preview and interactive markers -->
+      <!-- Results with sticky image and scrollable list -->
       <div class="results-section">
-        <div class="image-container">
-          <img src={imagePreview} alt="Menu preview" />
-
-          {#if isProcessing}
-            <div class="overlay-message">
-              <div class="spinner"></div>
-              <p>Analyzing menu with AI...</p>
-              <p class="hint">This may take a few seconds</p>
-            </div>
-          {:else if error}
-            <div class="overlay-message error-overlay">
-              <p>{error}</p>
-              <button on:click={reset}>Try Another Photo</button>
-            </div>
-          {:else if matchedTerms.length > 0}
-            <!-- Clickable markers for each dish -->
-            {#each matchedTerms as term, index}
-              <button
-                class="marker"
-                class:active={selectedTerm === term}
-                style="left: {term.position.x}%; top: {term.position.y}%;"
-                on:click={() => selectTerm(term)}
-                aria-label="View {term.name}"
-              >
-                {index + 1}
-              </button>
-            {/each}
-
-            <!-- Popup for selected term -->
-            {#if selectedTerm}
-              <div
-                class="popup"
-                style="left: {selectedTerm.position.x}%; top: {selectedTerm.position.y}%;"
-              >
-                <button class="popup-close" on:click={() => selectedTerm = null}>×</button>
-                <h3>{selectedTerm.name}</h3>
-                <p>{selectedTerm.definition}</p>
+        {#if isProcessing}
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Analyzing menu with AI...</p>
+            <p class="hint">This may take a few seconds</p>
+          </div>
+        {:else if error}
+          <div class="error-state">
+            <p>{error}</p>
+            <button on:click={reset}>Try Another Photo</button>
+          </div>
+        {:else}
+          <div class="results-layout">
+            <!-- Sticky image column -->
+            <div class="image-column">
+              <div class="sticky-image">
+                <img src={imagePreview} alt="Menu preview" />
               </div>
-            {/if}
-
-            <!-- Info hint -->
-            <div class="info-hint">
-              Click the numbered markers to learn about each dish
             </div>
-          {:else}
-            <div class="overlay-message">
-              <p>No dishes identified in this image.</p>
-              <p class="hint">Make sure the photo is clear and shows menu items with dish names.</p>
-            </div>
-          {/if}
-        </div>
 
-        {#if !isProcessing}
-          <button class="reset-button" on:click={reset}>
-            Analyze Another Photo
-          </button>
+            <!-- Scrollable list column -->
+            <div class="list-column">
+              {#if matchedTerms.length > 0}
+                <h2>Identified Items</h2>
+                <div class="items-list">
+                  {#each matchedTerms as term, index}
+                    <div class="item-row">
+                      {#if term.imageUrl}
+                        <img class="item-image" src={term.imageUrl} alt={term.name} />
+                      {:else}
+                        <span class="item-number">{index + 1}</span>
+                      {/if}
+                      <div class="item-details">
+                        <h3>{term.name}</h3>
+                        <p>{term.definition}</p>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <div class="no-results">
+                  <p>No special dishes or ingredients identified.</p>
+                  <p class="hint">Make sure the photo shows menu items with dish names.</p>
+                </div>
+              {/if}
+            </div>
+          </div>
+
+          <div class="button-container">
+            <button class="reset-button" on:click={reset}>
+              Analyze Another Photo
+            </button>
+          </div>
         {/if}
       </div>
     {/if}
@@ -237,15 +276,15 @@
   :global(body) {
     margin: 0;
     padding: 0;
-    font-family: 'Georgia', 'Times New Roman', serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
     background: #fafaf8;
     min-height: 100vh;
   }
 
   main {
-    max-width: 900px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: 40px 40px;
     min-height: 100vh;
   }
 
@@ -263,7 +302,6 @@
     font-weight: 400;
     letter-spacing: 0.02em;
     color: #1a1a1a;
-    font-family: 'Georgia', serif;
   }
 
   header p {
@@ -406,142 +444,189 @@
     color: #1a1a1a;
   }
 
-  /* Markers */
-  .marker {
-    position: absolute;
-    width: 32px;
-    height: 32px;
-    transform: translate(-50%, -50%);
+  /* Loading and error states */
+  .loading-state,
+  .error-state {
+    padding: 60px 20px;
+    text-align: center;
+  }
+
+  .loading-state p,
+  .error-state p {
+    margin: 12px 0;
+    color: #1a1a1a;
+  }
+
+  .loading-state .hint {
+    font-size: 0.85rem;
+    color: #6b6b68;
+  }
+
+  .error-state button {
+    margin-top: 20px;
+    padding: 12px 32px;
     background: #1a1a1a;
     color: #fafaf8;
-    border: 2px solid #fafaf8;
-    border-radius: 50%;
-    font-size: 0.85rem;
-    font-weight: 400;
+    border: 1px solid #1a1a1a;
+    font-size: 0.9rem;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    transition: all 0.2s ease;
-    z-index: 5;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
   }
 
-  .marker:hover {
-    transform: translate(-50%, -50%) scale(1.1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  }
-
-  .marker.active {
-    background: #fafaf8;
-    color: #1a1a1a;
-    border-color: #1a1a1a;
-    transform: translate(-50%, -50%) scale(1.1);
-  }
-
-  /* Popup */
-  .popup {
-    position: absolute;
-    transform: translate(-50%, calc(-100% - 40px));
-    background: #ffffff;
-    padding: 24px;
-    max-width: 300px;
-    min-width: 260px;
-    z-index: 15;
-    border: 1px solid #d4d4d0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    animation: popupAppear 0.2s ease-out;
-  }
-
-  @keyframes popupAppear {
-    from {
-      opacity: 0;
-      transform: translate(-50%, calc(-100% - 35px));
-    }
-    to {
-      opacity: 1;
-      transform: translate(-50%, calc(-100% - 40px));
-    }
-  }
-
-  .popup::after {
-    content: '';
-    position: absolute;
-    bottom: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 6px solid #ffffff;
-  }
-
-  .popup-close {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    width: 24px;
-    height: 24px;
+  .error-state button:hover {
     background: transparent;
-    border: none;
-    font-size: 1.3rem;
-    line-height: 1;
-    cursor: pointer;
-    color: #9b9b98;
-    transition: color 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-  }
-
-  .popup-close:hover {
     color: #1a1a1a;
   }
 
-  .popup h3 {
-    margin: 0 0 16px 0;
-    font-size: 1.15rem;
+  /* Results layout with sticky image */
+  .results-layout {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 40px;
+  }
+
+  @media (max-width: 768px) {
+    .results-layout {
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    .image-column {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 120px;
+      z-index: 100;
+    }
+
+    .sticky-image {
+      position: relative;
+      top: 0;
+    }
+
+    .sticky-image img {
+      width: 100%;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .list-column {
+      padding-bottom: 160px;
+    }
+  }
+
+  .image-column {
+    position: relative;
+  }
+
+  .sticky-image {
+    position: sticky;
+    top: 20px;
+  }
+
+  .sticky-image img {
+    width: 100%;
+    border: 1px solid #d4d4d0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .list-column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .list-column h2 {
+    margin: 0 0 24px 0;
+    font-size: 1.4rem;
+    font-weight: 400;
+    color: #1a1a1a;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid #d4d4d0;
+    padding-bottom: 16px;
+  }
+
+  .items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .item-row {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #e5e5e3;
+    transition: border-color 0.2s;
+  }
+
+  .item-row:hover {
+    border-color: #1a1a1a;
+  }
+
+  .item-number {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: #1a1a1a;
+    color: #fafaf8;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .item-image {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid #e5e5e3;
+  }
+
+  .item-details h3 {
+    margin: 0 0 6px 0;
+    font-size: 1rem;
     font-weight: 500;
     color: #1a1a1a;
-    padding-right: 24px;
-    letter-spacing: 0.01em;
-    font-family: 'Georgia', serif;
   }
 
-  .popup p {
+  .item-details p {
     margin: 0;
     color: #6b6b68;
-    line-height: 1.7;
     font-size: 0.9rem;
-    font-weight: 400;
+    line-height: 1.5;
   }
 
-  /* Info hint */
-  .info-hint {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(26, 26, 26, 0.85);
-    color: #fafaf8;
-    padding: 8px 20px;
-    font-size: 0.8rem;
-    font-weight: 400;
-    letter-spacing: 0.02em;
-    z-index: 5;
-    animation: fadeIn 0.3s ease-out;
+  .no-results {
+    padding: 40px 20px;
+    text-align: center;
   }
 
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  .no-results p {
+    margin: 12px 0;
+    color: #1a1a1a;
+  }
+
+  .no-results .hint {
+    font-size: 0.85rem;
+    color: #6b6b68;
+  }
+
+  /* Button container */
+  .button-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 40px;
   }
 
   /* Reset button */
   .reset-button {
-    align-self: center;
     width: auto;
     min-width: 200px;
     padding: 14px 40px;
@@ -554,7 +639,6 @@
     cursor: pointer;
     transition: all 0.3s ease;
     text-transform: uppercase;
-    margin-top: 32px;
   }
 
   .reset-button:hover {

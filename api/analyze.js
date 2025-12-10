@@ -1,40 +1,15 @@
-import express from 'express';
-import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
-import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
-// Load environment variables
-dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Initialize Anthropic client (server-side, no CORS issues!)
 const anthropic = new Anthropic({
-  apiKey: process.env.VITE_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Middleware
-app.use(cors()); // Allow requests from frontend
-app.use(express.json({ limit: '10mb' })); // Parse JSON bodies (increase limit for images)
+export default async function handler(req, res) {
+  // Only allow POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(join(__dirname, 'dist')));
-}
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Backend server is running' });
-});
-
-// Main API endpoint - proxies to Anthropic
-app.post('/api/analyze', async (req, res) => {
   try {
     const { image, mediaType } = req.body;
 
@@ -55,7 +30,7 @@ app.post('/api/analyze', async (req, res) => {
 
     console.log('Processing image analysis request...');
 
-    // Call Anthropic API (server-to-server, no CORS restrictions!)
+    // Call Anthropic API
     const message = await anthropic.messages.create({
       model: 'claude-opus-4-5',
       max_tokens: 2048,
@@ -143,7 +118,6 @@ If no identifiable dishes are found, return an empty array: []`
     });
 
     console.log('Successfully received response from Claude API');
-    console.log('Raw Claude response:', JSON.stringify(message.content[0].text, null, 2));
 
     // Parse dishes and fetch images
     const responseText = message.content[0].text;
@@ -221,7 +195,7 @@ If no identifiable dishes are found, return an empty array: []`
       }
     }
 
-    // Return the response to frontend
+    // Return the response
     res.json({
       success: true,
       response: message
@@ -233,7 +207,7 @@ If no identifiable dishes are found, return an empty array: []`
     // Handle specific error types
     if (error.status === 401) {
       return res.status(401).json({
-        error: 'Invalid API key. Check your .env file.'
+        error: 'Invalid API key. Check your environment variables.'
       });
     }
 
@@ -254,18 +228,4 @@ If no identifiable dishes are found, return an empty array: []`
       error: error.message || 'Failed to process image'
     });
   }
-});
-
-// Catch-all route for SPA in production
-if (process.env.NODE_ENV === 'production') {
-  app.get('*', (_req, res) => {
-    res.sendFile(join(__dirname, 'dist', 'index.html'));
-  });
 }
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`);
-  console.log(`📡 API endpoint: http://localhost:${PORT}/api/analyze`);
-  console.log(`💚 Health check: http://localhost:${PORT}/health`);
-});
